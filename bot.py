@@ -13,6 +13,8 @@ from terminaltables import AsciiTable
 
 client = Bot(description="TechBot by eragon5779#1448", command_prefix="$", pm_help = False)
 
+amd = json.loads(open('specs.json').read())
+intel = json.loads(open('intel.json').read())
 @client.event
 async def on_ready():
         print('https://discordapp.com/oauth2/authorize?client_id={}&scope=bot&permissions=121920'.format(client.user.id))
@@ -23,69 +25,110 @@ async def on_ready():
 async def on_message(message) :
 	if message.author == client.user :
 		return
-    
+
 	if message.content.startswith(client.command_prefix + "intel") :
 		await client.send_message(message.channel, 'Please enter model you want to search for (i.e. 6700)')
 
 		msg = await client.wait_for_message(author=message.author)
 
-		ark_json = arksearch.quick_search(msg.content)
-		if len(ark_json) < 1:
-			await client.send_message(message.channel, 'Could not find any processors')
-			return
-
-		await client.send_message(message.channel, u"Processors found: {0}".format(len(ark_json)))
-
-		choice_dict = {}
-		counter = 0
+		matching = []
 		cpuList = ""
-		for cpu in ark_json:
-			choice_dict[counter] = cpu['id']
-			cpuList += (u"[{0}] {1}\n".format(counter, cpu['value']))
-			counter += 1
-		await client.send_message(message.channel, cpuList)
+		count = 0
+		for i in range(0, len(intel['d'])) :
+			if msg.content.lower() in intel['d'][i]['ProductName'].lower() :
+				matching.append(i)
+				cpuList += '[%d] %s\n' % (count,intel['d'][i]['ProductName'])
+				count += 1
 
-		if len(ark_json) > 1:
-			await client.send_message(message.channel, "Which CPU do you want?")
+		if len(cpuList) < 1 :
+			await client.send_message(message.channel, "No processors found")
+			return
+		try :
+			await client.send_message(message.channel, cpuList)
+		except :
+			await client.send_message(message.channel, 'Error: List too large. Please refine search.')
+			return
+		choice = 0
+		if count > 1 :
+			await client.send_message(message.channel, 'Which CPU do you want?')
 			msg = await client.wait_for_message(author=message.author)
 			choice = int(msg.content)
-		else:
-			choice = 0
-		
-		searchTerm = "https://odata.intel.com/API/v1_0/Products/Processors()?&$filter=ProductId eq %s&$format=json" % choice_dict[int(choice)]
-		searchTerm.replace(' ',"%20")
-		cpu_data = requests.get(searchTerm).text
-
-		# split the data to [48:227]
-
-		def pp_json(json_thing, sort=True, indents=4):
-			if type(json_thing) is str:
-				return(json.dumps(json.loads(json_thing), sort_keys=sort, indent=indents))
-			else:
-				return(json.dumps(json_thing, sort_keys=sort, indent=indents))
-
-		cpu_data = pp_json(cpu_data, False)
-
-		cpu_data = cpu_data.split('\n')[48:227]
-		cpu_data = '\n'.join(cpu_data)
-		cpu_data = '{\n' + cpu_data + '\n}'
-		cpu_data = pp_json(cpu_data)
-		cpu_data = json.loads(cpu_data)
-
-		wantedData = ['ProductName','CoreCount','ThreadCount',
-					  'ClockSpeed','ClockSpeedMax','Cache','MaxTDP',
-					  'BornOnDate','MaxMem','Lithography',
-					  'SocketsSupported','ScalableSockets']
-
+		wantedData = {
+			'ProductName':'Name',
+			'CoreCount':'Cores',
+			'ThreadCount':'Threads',
+			'ClockSpeed':'Base Clock',
+			'ClockSpeedMax':'Boost Clock',
+			'Cache':'Cache',
+			'MaxTDP':'TDP',
+			'BornOnDate':'Release Date',
+			'MaxMem':'Max Memory',
+			'Lithography':'Lithography',
+			'SocketsSupported':'Socket',
+			'ScalableSockets':'Multiple CPU'
+		}
 		userOut = "```"
-
-		for need in wantedData :
-			spaces = 16 - len(need)
-			userOut += ' ' * spaces
-			userOut += need + ': ' + str(cpu_data[need]) + '\n'
-		userOut += "```"
+		for need in wantedData.keys() :
+			spaces = " " * (17 - len(wantedData[need]))
+			userOut += spaces + ('%s: %s\n' % (wantedData[need],str(intel['d'][matching[choice]][need])))
+			
+		userOut += '```'
 
 		await client.send_message(message.channel, userOut)
+
+	if message.content.startswith(client.command_prefix + "amd") :
+		await client.send_message(message.channel, 'Please enter model you want to search for (i.e. 1500)')
+
+		msg = await client.wait_for_message(author=message.author)
+
+		matching = []
+		cpuList = ""
+		count = 0
+		for cpu in amd :
+			if msg.content.lower() in amd[str(cpu)]['humanName'].lower() and amd[str(cpu)]['type'] == 'CPU' and amd[str(cpu)]['isPart']:
+				matching.append(str(cpu))
+				cpuList += '[%d] %s\n' % (count, amd[str(cpu)]['humanName'])
+				count += 1
+
+		if len(cpuList) < 1 :
+			await client.send_message(message.channel, "No processors found")
+			return
+		try :
+			await client.send_message(message.channel, cpuList)
+		except :
+			await client.send_message(message.channel, 'Error: List too large. Please refine search.')
+			return
+		choice = 0
+		if count > 1 :
+			await client.send_message(message.channel, 'Which CPU do you want?')
+			msg = await client.wait_for_message(author=message.author)
+			choice = int(msg.content)
+		wantedData = {
+			'humanName':'Name',
+			'Core Count':'Cores',
+			'Thread Count':'Threads',
+			'Base Frequency':'Base Clock',
+			'Boost Frequency':'Boost Clock',
+			'L3 Cache (Total)':'Cache',
+			'TDP':'TDP',
+			'Release Date':'Release Date',
+			'Lithography':'Lithography',
+			'Socket':'Socket'
+		}
+		userOut = "```"
+		for data in wantedData.keys() :
+			spaces = " " * (17 - len(wantedData[data]))
+			try :
+				if data == 'humanName' :
+					userOut += spaces + ('%s: %s\n' % (wantedData[data],str(amd[matching[choice]][data])))
+				else :
+					userOut += spaces + '%s: %s\n' % (wantedData[data],str(amd[matching[choice]]['data'][data]))
+			except :
+				pass
+		userOut += '```'
+
+		await client.send_message(message.channel, userOut)
+
 
 key = open(".bot.key", "r")
 
