@@ -2,7 +2,7 @@
 
 ## What is TechBot?
 
-TechBot is a Discord bot that helps people with there technology needs
+TechBot is a Discord bot that helps people with their technology needs
 
 ## Commmands
 * $intel
